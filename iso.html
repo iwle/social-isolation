@@ -1,0 +1,399 @@
+<html>
+    <head>
+        <meta charset='utf-8'/>
+        <title>Social Isolation Visualisation</title>
+        <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.min.js'></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+        <script src="https://d3js.org/d3-array.v2.min.js"></script>
+        <style>
+            .panel-transparent {
+                background: none;
+            }
+
+        </style>
+    </head>
+    <body>
+        <div class='container' style='margin-top:40px; border-radius:.50rem'>
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                <a class="navbar-brand">Space Doggo Visualisation</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon"></span>
+                </button>
+              
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                  <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                      <a id='source-link' class="nav-link" href="#">About</a>
+                    </li>
+                  </ul>
+                </div>
+              </nav>
+            <div class='bg-dark'>
+                <div id='main-container' class='float bg-light container-fluid'>
+                    <div class='container-fluid'>
+                        <div id='container'></div>
+                    </div>
+                </div>
+              </div>
+        </div>
+        <div id='source-modal' class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="exampleModalLabel">Source Reference</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  This visualisation would not have been possible were it not for the following data sources:
+
+                  
+
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <script>
+        // Load and manage data
+        
+        $('#source-link').on('click', function() {
+            $('#source-modal').modal('toggle')
+        })
+
+        Promise.all([
+            d3.csv('iso.csv'),
+            d3.csv('isob.csv'),
+        ]).then(function (data) {
+            let dataset = data[0]
+            let datasetNext = data[1]
+
+            // Data accessors
+            let causeAccessor = (entry) => {
+                return entry.cause
+            }
+
+            let solnAccessor = (entry) => {
+                return entry.soln
+            }
+
+            let benefitAccessor = (entry) => {
+                return entry.benefits
+            }
+
+            // Dimensions
+            const val = $('#main-container').width()
+            const htt = $('#main-container').height()
+            // const val = 500
+            let dimensions = {
+                width: val,
+                height: val * 0.5,
+                margins: {
+                    top: 50,
+                    right: 150,
+                    bottom: 50,
+                    left: 150
+                }
+            }
+
+            dimensions.boundedWidth = dimensions.width - dimensions.margins.left - dimensions.margins.right
+            dimensions.boundedHeight = dimensions.height - dimensions.margins.top - dimensions.margins.bottom
+
+            let groupedDataset = d3.group(dataset, (d) => {
+                return d.soln
+            })
+
+            let groupedDatasetNext = d3.group(datasetNext, (d) => {
+                return d.soln
+            })
+
+            let newX = new Map([...groupedDataset.entries()].sort(function(a,b) {
+                // return ((a.length < b.length) ? -1 : ((a.length > b.length) ? 1 : 0));
+                if (a.length < b.length) {
+                    return -1
+                } else if (a.length == b.length) {
+                    return 0
+                } else {
+                    return 1
+                }
+                // console.log(a,b)   
+            }))
+
+            sortedGroupedDataset = Array.from(groupedDataset).sort(function(a,b) {
+                if (a[1].length < b[1].length) {
+                    return -1
+                } else if (a[1].length == b[1].length) {
+                    return 0
+                } else {
+                    return 1
+                }
+            })
+            
+            // Render canvas
+            let wrapper = d3.select('#container')
+                .append('svg')
+                .attr("preserveAspectRatio", "xMinYMin meet")
+                .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`)
+
+            let bounded = wrapper.append('g')
+                .style('transform', `translate(
+                    ${dimensions.margins.left}px,
+                    ${dimensions.margins.top}px`)
+
+            // Render scale
+            const yScaleCause = d3.scalePoint()
+                .domain(d3.map(dataset, causeAccessor).keys())
+                .range([0, dimensions.boundedHeight])
+            
+            const yScaleSoln = d3.scalePoint()
+                .domain(d3.map(dataset, solnAccessor).keys())
+                .range([0, dimensions.boundedHeight])
+
+            const yScaleBenefit = d3.scalePoint()
+                .domain(d3.map(datasetNext, benefitAccessor).keys())
+                .range([0, dimensions.boundedHeight])
+
+            const nScaleColour = d3.scaleOrdinal(d3.schemeCategory10)
+                .domain(d3.map(dataset, causeAccessor).keys())
+            
+            // console.log(yScaleCauses.domain())
+            // console.log(yScaleCauses('choking'))
+            const dist = dimensions.boundedWidth / Object.keys(dataset[0]).length
+            const r = 2
+
+            const space = 5
+            const weight = 2
+            // Render data
+            // console.log(groupedDataset)
+            const lines = bounded.append('g')
+                .attr('id', `lines`)
+                
+            groupedDataset.forEach(function (value, key) {
+                // console.log(key)
+                // console.log(value)
+
+                const thisGroup = lines.append('g')
+                    .attr('id', `${key.replace(/ /g, '-')}`)
+
+                const textPts = thisGroup.append('text')
+                    .style('text-anchor', 'middle')
+                    .attr('x', dist + space)
+                    .attr('y', yScaleSoln(key))
+                    .text(key)
+                    .attr('background', 'solid')
+                    .attr('font-family', 'sans-serif')
+                    .attr('font-size', '10px')
+                    .on('mouseenter', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+
+                        thisGroup.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+                        
+                    })
+                    .on('mouseout', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                        .attr('stroke-opacity', 0.5)
+                        
+                        thisGroup.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                            .attr('stroke-opacity', 0.5)
+                    })
+
+                const causePts = thisGroup.append('g')
+                    .selectAll('circle')
+                    .data(value)
+                    .enter().append('circle')
+                    .attr('cx', 0)
+                    .attr('cy', (d) => {
+                        return yScaleCause(causeAccessor(d))
+                    })
+
+                const solnPts = thisGroup.append('g')
+                    .selectAll('circle')
+                    .data(value)
+                    .enter().append('circle')
+                    .attr('cx', dist)
+                    .attr('cy', (d) => {
+                        return yScaleSoln(solnAccessor(d))
+                    })
+                    .attr('r', r)
+                    .attr('fill', `${nScaleColour(key)}`)
+
+                // const benefitPts = thisGroup.append('g')
+                //     .selectAll('circle')
+                //     .data(value)
+                //     .enter().append('circle')
+                //     .attr('cx', 2*dist)
+                //     .attr('cy', (d) => {
+                //         return yScaleBenefit(benefitAccessor(d))
+                //     })
+                //     .attr('r', r)
+                //     .attr('fill', `black`)
+
+                const causeSolnLine = thisGroup.append('g')
+                    .attr('class', `${key.replace(/ /g, '-')}-line-select`)
+                    .selectAll('line')
+                    .data(value)
+                    .enter()
+                    .append('line')
+                    .attr('x1', 0)
+                    .attr('y1', (d) => {
+                        return yScaleCause(causeAccessor(d))
+                    })
+                    .attr('x2', dist)
+                    .attr('y2', (d) => {
+                        return yScaleSoln(solnAccessor(d))
+                    })
+                    .attr('stroke', 'gray')
+                    .attr('stroke-width', weight)
+                    .attr('stroke', `${nScaleColour(key)}`)
+                    .attr('stroke-opacity', 0.5)
+                    .on('mouseenter', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+
+                        thisGroup.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+                        
+                    })
+                    .on('mouseout', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                        .attr('stroke-opacity', 0.5)
+                        
+                        thisGroup.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                            .attr('stroke-opacity', 0.5)
+                        })
+            })
+
+            groupedDatasetNext.forEach(function (value, key) {
+                if (!(key)) {
+                    return
+                }
+                const thisGroup = lines.select(`#${key.replace(/ /g, '-')}`)
+                    .select('g')
+                    .attr('class', `${key.replace(/ /g, '-')}-line-select-new`)
+
+                const SolnBenefitLine = thisGroup.selectAll('line')
+                    .data(value)
+                    .enter().append('line')
+                    .attr('x1', dist)
+                    .attr('y1', (d) => {
+                        return yScaleSoln(solnAccessor(d))
+                    })
+                    .attr('x2', dist * 2)
+                    .attr('y2', (d) => {
+                        return yScaleBenefit(benefitAccessor(d))
+                    })
+                    .attr('stroke', 'blue')
+                    .attr('stroke-width', weight)
+                    .attr('stroke', `${nScaleColour(key)}`)
+                    .attr('stroke-opacity', 0.5)
+                    .on('mouseenter', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', 'darkblue')
+                            .attr('stroke-width', weight)
+                            .attr('stroke-opacity', 1.0)
+                    })
+                    .on('mouseout', function() {
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select-new`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                        .attr('stroke-opacity', 0.5)
+                        
+                        d3.select(`.${key.replace(/ /g, '-')}-line-select`)
+                            .selectAll('line')
+                            .attr('stroke', `${nScaleColour(key)}`)
+                            .attr('stroke-opacity', 0.5)
+                    })
+            })
+            
+
+            // Render axis
+            const yAxisGeneratorCause = d3.axisLeft()
+                .scale(yScaleCause)
+
+            const yAxisGeneratorSoln = d3.axisRight()
+                .scale(yScaleSoln)
+
+            const yAxisGeneratorBenefit = d3.axisRight()
+                .scale(yScaleBenefit)
+
+            const yAxisCause = bounded.append('g')
+                .call(yAxisGeneratorCause)
+                .attr('stroke-width', 1)
+
+            const yAxisBenefit = bounded.append('g')
+                .call(yAxisGeneratorBenefit)
+                .style('transform', `translate(${2*dist}px, 0px)`)
+                .attr('stroke-width', 1)
+
+            bounded.append('text')
+                .style('text-anchor', 'left')
+                .attr('y', -20)
+                .text('Effects')
+                .attr('font-family', 'sans-serif')
+                .attr('font-size', '10px')
+                .attr('font-weight', 'bold')
+                
+            bounded.append('text')
+                .style('text-anchor', 'middle')
+                .attr('x', dist + space)
+                .attr('y', -20)
+                .text('Solutions')
+                .attr('font-family', 'sans-serif')
+                .attr('font-size', '10px')
+                .attr('font-weight', 'bold')
+
+                bounded.append('text')
+                .style('text-anchor', 'middle')
+                .attr('x', 2* dist + space)
+                .attr('y', -20)
+                .text('Other benefits')
+                .attr('font-family', 'sans-serif')
+                .attr('font-size', '10px')
+                .attr('font-weight', 'bold')
+
+            wrapper.append('text')
+                .style('text-anchor', 'right')
+                .attr('x', dimensions.margins.left)
+                .attr('y', dimensions.height - 10)
+                .text('Source: NASA, Our World in Data')
+                .attr('font-family', 'sans-serif')
+                .attr('font-size', '10px')
+                .attr('font-weight', 'normal')
+        })
+        </script>
+    </body>
+</html>
